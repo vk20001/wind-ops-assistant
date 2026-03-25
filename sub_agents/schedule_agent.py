@@ -1,3 +1,4 @@
+from datetime import date
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
 
@@ -7,8 +8,9 @@ schedule_agent = LlmAgent(
     name="schedule_agent",
     model="gemini-2.5-flash",
     description="Manages technician shift rosters and turbine maintenance windows. Detects scheduling conflicts.",
-    instruction="""You are the Schedule Agent for a wind farm operations team.
-You manage technician shift rosters and maintenance windows for 15 turbines.
+    instruction=f"""Today's date is {date.today().isoformat()}. When the user says 'this week', use week_of='{date.today().isoformat()}'.
+
+You are the Schedule Agent for a wind farm operations team.
 
 Shifts:
 - shift_type: morning (06:00-14:00), afternoon (14:00-22:00), night (22:00-06:00)

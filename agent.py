@@ -1,56 +1,107 @@
 """
 WindOps — root orchestrator agent.
-ADK requires a module-level `root_agent` variable named exactly this.
 """
 
 import os
+from datetime import date
 from dotenv import load_dotenv
 load_dotenv()
 
-from google.adk.agents import LlmAgent
+from google.adk.agents import LlmAgent, SequentialAgent
+from google.adk.tools import FunctionTool
 
-from sub_agents.task_agent import task_agent
-from sub_agents.schedule_agent import schedule_agent
-from sub_agents.knowledge_agent import knowledge_agent
+from tools.task_tools import create_task, list_tasks, update_task
+from tools.schedule_tools import get_schedule, add_shift, check_conflicts
+from tools.knowledge_tools import search_docs, add_note, get_doc
+
+# Standalone agents for direct requests
+task_agent = LlmAgent(
+    name="task_agent",
+    model="gemini-2.5-flash",
+    description="Creates, lists, and updates maintenance tasks for turbines T-001 to T-015.",
+    instruction="""You are the Task Agent for a wind farm operations team.
+Manage maintenance work orders for 15 wind turbines (T-001 to T-015).
+Priority: P1 (safety-critical), P2 (performance), P3 (routine).
+Status: open, in_progress, completed, blocked.
+When creating tasks confirm turbine_id and priority. Flag P1 as safety-critical.
+When listing tasks default to open tasks sorted by priority (P1 first).
+""",
+    tools=[FunctionTool(create_task), FunctionTool(list_tasks), FunctionTool(update_task)],
+)
+
+schedule_agent = LlmAgent(
+    name="schedule_agent",
+    model="gemini-2.5-flash",
+    description="Manages technician shifts and maintenance windows.",
+    instruction=f"""Today's date is {date.today().isoformat()}. When user says 'this week' use week_of='{date.today().isoformat()}'.
+You are the Schedule Agent for a wind farm operations team.
+Shift types: morning (06:00-14:00), afternoon (14:00-22:00), night (22:00-06:00).
+Always use YYYY-MM-DD date format. Always use T-001 format for turbine IDs.
+Show shifts grouped by date. Flag maintenance windows clearly.
+""",
+    tools=[FunctionTool(get_schedule), FunctionTool(add_shift), FunctionTool(check_conflicts)],
+)
+
+knowledge_agent = LlmAgent(
+    name="knowledge_agent",
+    model="gemini-2.5-flash",
+    description="Retrieves SOPs, manuals, safety bulletins. Saves field notes.",
+    instruction="""You are the Knowledge Agent for a wind farm operations team.
+Categories: sop, manual, field_note, safety_bulletin.
+When searching return title, category, snippet, doc_id.
+When adding field notes confirm the doc_id in your response.
+""",
+    tools=[FunctionTool(search_docs), FunctionTool(add_note), FunctionTool(get_doc)],
+)
+
+# Separate instances for the triage sequential flow
+triage_knowledge_agent = LlmAgent(
+    name="triage_knowledge_agent",
+    model="gemini-2.5-flash",
+    description="Fetches SOP for a turbine fault.",
+    instruction="""You are the Knowledge Agent handling a turbine fault triage.
+Search for the most relevant SOP based on the fault type mentioned.
+Return the SOP title, snippet, and doc_id clearly.
+""",
+    tools=[FunctionTool(search_docs), FunctionTool(get_doc)],
+)
+
+triage_task_agent = LlmAgent(
+    name="triage_task_agent",
+    model="gemini-2.5-flash",
+    description="Checks open tasks for a turbine during fault triage.",
+    instruction="""You are the Task Agent handling a turbine fault triage.
+List all open tasks for the turbine mentioned in the conversation.
+If a P1 task exists, flag it as URGENT and safety-critical.
+If no open tasks exist, state that clearly.
+""",
+    tools=[FunctionTool(list_tasks), FunctionTool(create_task)],
+)
+
+# Sequential triage pipeline
+fault_triage_agent = SequentialAgent(
+    name="fault_triage_agent",
+    description="Handles turbine fault alerts. Fetches SOP then checks open tasks.",
+    sub_agents=[triage_knowledge_agent, triage_task_agent],
+)
 
 root_agent = LlmAgent(
     name="windops_coordinator",
     model="gemini-2.5-flash",
-    description="WindOps: multi-agent productivity assistant for wind farm operations teams.",
-    instruction="""You are WindOps, a productivity assistant for wind farm operations teams.
-You coordinate three specialist agents:
+    description="WindOps: multi-agent assistant for wind farm operations.",
+    instruction=f"""You are WindOps, a productivity assistant for wind farm operations teams.
+Today's date is {date.today().isoformat()}.
 
-- task_agent: manages maintenance work orders — create, list, and update tasks for turbines T-001 to T-015
-- schedule_agent: manages technician shift rosters and turbine maintenance windows
-- knowledge_agent: retrieves SOPs, manuals, safety bulletins, and saves field notes
+Route to exactly one agent per request:
 
-Routing rules:
-- Task-related requests (create a task, what are the open tasks, update task status) → task_agent
-- Schedule-related requests (who is on shift, add a shift, check conflicts, what's on this week) → schedule_agent
-- Knowledge requests (what's the procedure for X, find the SOP, add a field note) → knowledge_agent
-- For complex requests, coordinate across agents and merge the results into a coherent response
+- fault_triage_agent: ANY turbine fault or sensor alert ("T-007 gearbox vibration high", "what should I do about T-003")
+- task_agent: create, list, or update tasks (no fault context)
+- schedule_agent: shifts, scheduling, weekly planning, conflicts
+- knowledge_agent: add field notes, search SOPs without a fault context
 
-Complex workflow examples:
-
-"Plan my maintenance week" — coordinate:
-1. schedule_agent: get this technician's shift schedule for the week
-2. task_agent: list open tasks assigned to this technician
-3. Merge: produce a day-by-day plan that maps open tasks to shifts, P1 tasks scheduled first, matched to the turbines assigned each day
-
-"T-007 gearbox vibration is high, what should I do?" — coordinate:
-1. knowledge_agent: search for gearbox vibration SOP
-2. task_agent: list open tasks for T-007
-3. Merge: return the SOP procedure plus any existing tasks for T-007 so the technician has the full picture
-
-"Create a task and schedule it" — coordinate:
-1. task_agent: create the task
-2. schedule_agent: check for conflicts, confirm or suggest a maintenance window
-
-Always respond with actionable, domain-specific information.
-Use turbine IDs (T-001 to T-015) consistently.
-Use technician names consistently: Rajesh Kumar, Mei Chen, Arjun Patel, Priya Sharma.
-For P1 (safety-critical) tasks, always highlight the urgency in your response.
-When uncertain which agent to use, ask the user to clarify.
+Always use turbine IDs T-001 to T-015.
+Technician names: Rajesh Kumar, Mei Chen, Arjun Patel, Priya Sharma.
+Flag P1 tasks as URGENT in every response.
 """,
-    sub_agents=[task_agent, schedule_agent, knowledge_agent],
+    sub_agents=[fault_triage_agent, task_agent, schedule_agent, knowledge_agent],
 )
