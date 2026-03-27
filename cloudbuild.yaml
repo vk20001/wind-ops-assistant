@@ -3,31 +3,25 @@ steps:
     args:
       - 'build'
       - '-t'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${SHORT_SHA}'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/wind-ops-repo/wind-ops-assistant:latest'
       - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${SHORT_SHA}'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/wind-ops-repo/wind-ops-assistant:latest'
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
       - 'run'
       - 'deploy'
-      - '${_SERVICE}'
-      - '--image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_IMAGE}:${SHORT_SHA}'
-      - '--region=${_REGION}'
+      - 'wind-ops-assistant'
+      - '--image=europe-west1-docker.pkg.dev/$PROJECT_ID/wind-ops-repo/wind-ops-assistant:latest'
+      - '--region=europe-west1'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=${_REGION}'
-
-substitutions:
-  _REGION: europe-west1
-  _REPO: wind-ops-repo
-  _IMAGE: wind-ops-assistant
-  _SERVICE: wind-ops-assistant
+      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=europe-west3,GOOGLE_GENAI_USE_VERTEXAI=TRUE'
 
 options:
   logging: CLOUD_LOGGING_ONLY
