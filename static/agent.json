@@ -1,0 +1,10 @@
+{
+  "name": "WindOps Assistant",
+  "description": "Multi-agent wind farm operations assistant. Handles maintenance tasks, technician scheduling, anomaly alerts, and operational analytics across 15 turbines.",
+  "url": "https://wind-ops-assistant-cnd5nx432a-ew.a.run.app",
+  "version": "1.0.0",
+  "capabilities": {
+    "streaming": true,
+    "tools": ["task_management", "shift_scheduling", "knowledge_base", "analytics", "alert_management"]
+  }
+}

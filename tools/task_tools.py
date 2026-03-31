@@ -186,3 +186,127 @@ def update_task(
         "message": f"Task {task_id} updated: {', '.join(changes)}.",
         "task": updated,
     }
+def bulk_update_tasks(
+    task_ids: list[str],
+    status: str = "",
+    assigned_to: str = "",
+    priority: str = "",
+) -> dict:
+    """Update multiple tasks at once (e.g. close all tasks after a maintenance run, reassign when a technician is unavailable).
+
+    Args:
+        task_ids: List of task IDs to update (e.g. ['TASK-001', 'TASK-002'])
+        status: New status for all tasks: open, in_progress, completed, blocked
+        assigned_to: New assignee for all tasks
+        priority: New priority for all tasks: P1, P2, P3
+
+    Returns:
+        Dict with count of updated tasks, list of successes and failures
+    """
+    if not task_ids:
+        return {"success": False, "error": "No task_ids provided."}
+
+    if not status and not assigned_to and not priority:
+        return {"success": False, "error": "No fields provided to update. Specify status, assigned_to, or priority."}
+
+    if status and status not in ("open", "in_progress", "completed", "blocked"):
+        return {"success": False, "error": f"Invalid status '{status}'."}
+
+    if priority and priority not in ("P1", "P2", "P3"):
+        return {"success": False, "error": f"Invalid priority '{priority}'."}
+
+    db = get_client()
+    now = datetime.now(timezone.utc).isoformat()
+    updated = []
+    failed = []
+
+    for task_id in task_ids:
+        ref = db.collection("tasks").document(task_id)
+        doc = ref.get()
+
+        if not doc.exists:
+            failed.append({"task_id": task_id, "reason": "not found"})
+            continue
+
+        updates = {"updated_at": now}
+        changes = []
+        if status:
+            updates["status"] = status
+            changes.append(f"status → {status}")
+        if assigned_to:
+            updates["assigned_to"] = assigned_to
+            changes.append(f"assigned_to → {assigned_to}")
+        if priority:
+            updates["priority"] = priority
+            changes.append(f"priority → {priority}")
+
+        ref.update(updates)
+        add_audit_log(
+            action="task_bulk_updated",
+            entity_type="task",
+            entity_id=task_id,
+            details=", ".join(changes),
+        )
+        updated.append(task_id)
+
+    return {
+        "success": True,
+        "updated_count": len(updated),
+        "failed_count": len(failed),
+        "updated_task_ids": updated,
+        "failed": failed,
+        "message": f"{len(updated)} task(s) updated, {len(failed)} failed.",
+    }
+
+
+def get_task_stats(
+    assigned_to: str = "",
+    turbine_id: str = "",
+) -> dict:
+    """Get summary statistics of maintenance tasks — counts by priority, status, and active P1 alerts.
+
+    Args:
+        assigned_to: Filter stats to a specific technician (empty = all)
+        turbine_id: Filter stats to a specific turbine (empty = all)
+
+    Returns:
+        Dict with counts broken down by priority and status, plus open P1 task list
+    """
+    db = get_client()
+    query = db.collection("tasks")
+
+    if assigned_to:
+        query = query.where("assigned_to", "==", assigned_to)
+    if turbine_id:
+        query = query.where("turbine_id", "==", turbine_id)
+
+    tasks = [d.to_dict() for d in query.stream()]
+
+    by_priority = {"P1": 0, "P2": 0, "P3": 0}
+    by_status = {"open": 0, "in_progress": 0, "completed": 0, "blocked": 0}
+    open_p1 = []
+
+    for t in tasks:
+        p = t.get("priority", "P3")
+        s = t.get("status", "open")
+        by_priority[p] = by_priority.get(p, 0) + 1
+        by_status[s] = by_status.get(s, 0) + 1
+
+        if p == "P1" and s in ("open", "in_progress"):
+            open_p1.append({
+                "task_id": t["task_id"],
+                "turbine_id": t["turbine_id"],
+                "title": t["title"],
+                "status": s,
+                "assigned_to": t.get("assigned_to", "unassigned"),
+            })
+
+    return {
+        "success": True,
+        "total_tasks": len(tasks),
+        "by_priority": by_priority,
+        "by_status": by_status,
+        "open_p1_tasks": open_p1,
+        "open_p1_count": len(open_p1),
+        "message": f"{len(tasks)} total tasks. {len(open_p1)} open/active P1 tasks.",
+    }

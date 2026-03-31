@@ -176,7 +176,125 @@ MAINTENANCE_WINDOWS = [
     },
 ]
 
+# ---------------------------------------------------------------------------
+# Technicians
+# ---------------------------------------------------------------------------
 
+TECHNICIANS = [
+    {
+        "technician_id": "TECH-001",
+        "name": "Rajesh Kumar",
+        "role": "Senior Technician",
+        "default_shift": "morning",
+        "default_turbines": ["T-005", "T-006", "T-007", "T-008", "T-009", "T-010"],
+        "certifications": ["electrical", "gearbox", "yaw"],
+        "contact": "rajesh.kumar@windops.example",
+    },
+    {
+        "technician_id": "TECH-002",
+        "name": "Mei Chen",
+        "role": "Technician",
+        "default_shift": "afternoon",
+        "default_turbines": ["T-001", "T-002", "T-003", "T-004", "T-005"],
+        "certifications": ["pitch_system", "bearing", "blade"],
+        "contact": "mei.chen@windops.example",
+    },
+    {
+        "technician_id": "TECH-003",
+        "name": "Arjun Patel",
+        "role": "Technician",
+        "default_shift": "morning",
+        "default_turbines": ["T-011", "T-012", "T-013", "T-014", "T-015"],
+        "certifications": ["blade", "safety_inspection", "calibration"],
+        "contact": "arjun.patel@windops.example",
+    },
+    {
+        "technician_id": "TECH-004",
+        "name": "Priya Sharma",
+        "role": "Night Shift Lead",
+        "default_shift": "night",
+        "default_turbines": ["T-001", "T-003", "T-007", "T-011", "T-015"],
+        "certifications": ["electrical", "safety_inspection", "gearbox"],
+        "contact": "priya.sharma@windops.example",
+    },
+]
+
+# ---------------------------------------------------------------------------
+# Alerts
+# ---------------------------------------------------------------------------
+
+ALERTS = [
+    {
+        "alert_id": "ALERT-001",
+        "turbine_id": "T-007",
+        "alert_type": "sensor_anomaly",
+        "severity": "critical",
+        "description": "Gearbox vibration reading 5.8mm/s, approaching emergency shutdown threshold of 6.0mm/s.",
+        "status": "open",
+        "created_at": (TODAY - timedelta(hours=2)).isoformat(),
+        "acknowledged_by": "",
+        "acknowledged_at": "",
+        "escalated_to": "",
+        "escalation_reason": "",
+        "notes": "",
+    },
+    {
+        "alert_id": "ALERT-002",
+        "turbine_id": "T-012",
+        "alert_type": "safety_violation",
+        "severity": "critical",
+        "description": "Turbine T-012 still operational despite blade crack reported in TASK-002. Immediate shutdown required.",
+        "status": "open",
+        "created_at": (TODAY - timedelta(hours=6)).isoformat(),
+        "acknowledged_by": "",
+        "acknowledged_at": "",
+        "escalated_to": "",
+        "escalation_reason": "",
+        "notes": "",
+    },
+    {
+        "alert_id": "ALERT-003",
+        "turbine_id": "T-009",
+        "alert_type": "performance_degradation",
+        "severity": "high",
+        "description": "T-009 power output 40% below expected for current wind conditions. Yaw motor issue suspected.",
+        "status": "open",
+        "created_at": (TODAY - timedelta(hours=12)).isoformat(),
+        "acknowledged_by": "",
+        "acknowledged_at": "",
+        "escalated_to": "",
+        "escalation_reason": "",
+        "notes": "",
+    },
+    {
+        "alert_id": "ALERT-004",
+        "turbine_id": "T-003",
+        "alert_type": "maintenance_overdue",
+        "severity": "medium",
+        "description": "Pitch system inspection overdue by 2 weeks. Scheduled in TASK-003 but not yet started.",
+        "status": "acknowledged",
+        "created_at": (TODAY - timedelta(days=1)).isoformat(),
+        "acknowledged_by": "Mei Chen",
+        "acknowledged_at": (TODAY - timedelta(hours=18)).isoformat(),
+        "escalated_to": "",
+        "escalation_reason": "",
+        "notes": "Scheduled for next available maintenance window.",
+    },
+    {
+        "alert_id": "ALERT-005",
+        "turbine_id": "T-014",
+        "alert_type": "sensor_anomaly",
+        "severity": "low",
+        "description": "Anemometer readings drifting 0.5m/s from reference station. Calibration may be needed.",
+        "status": "open",
+        "created_at": (TODAY - timedelta(days=2)).isoformat(),
+        "acknowledged_by": "",
+        "acknowledged_at": "",
+        "escalated_to": "",
+        "escalation_reason": "",
+        "notes": "",
+    },
+]
 # ---------------------------------------------------------------------------
 # Documents (SOPs, manuals, safety bulletins)
 # ---------------------------------------------------------------------------
@@ -360,6 +478,8 @@ def main():
     seed_collection("tasks", TASKS, "task_id")
     seed_collection("shifts", build_shifts(), "shift_id")
     seed_collection("maintenance_windows", MAINTENANCE_WINDOWS, "window_id")
+    seed_collection("technicians", TECHNICIANS, "technician_id")
+    seed_collection("alerts", ALERTS, "alert_id")
     seed_collection("documents", DOCUMENTS, "doc_id")
     print("Done.")
 

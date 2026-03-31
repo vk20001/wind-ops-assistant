@@ -209,3 +209,160 @@ def check_conflicts(
         "conflicts": conflicts,
         "message": "No conflicts found." if not conflicts else f"{len(conflicts)} conflict(s) detected.",
     }
+
+def get_availability(
+    date: str,
+    shift_type: str = "",
+) -> dict:
+    """Find which technicians are available (not already scheduled) on a given date and shift.
+
+    Args:
+        date: Date to check in YYYY-MM-DD format
+        shift_type: Specific shift to check: morning, afternoon, night (empty = show all shifts)
+
+    Returns:
+        Dict with available technicians per shift type
+    """
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        return {"success": False, "error": f"Invalid date format '{date}'. Use YYYY-MM-DD."}
+
+    if shift_type and shift_type not in ("morning", "afternoon", "night"):
+        return {"success": False, "error": f"Invalid shift_type '{shift_type}'. Use morning, afternoon, or night."}
+
+    db = get_client()
+
+    # Pull technician roster from Firestore instead of hardcoding
+    all_technicians = [
+        d.to_dict()["name"]
+        for d in db.collection("technicians").stream()
+    ]
+
+    if not all_technicians:
+        return {"success": False, "error": "No technicians found in database."}
+
+    shift_types = [shift_type] if shift_type else ["morning", "afternoon", "night"]
+
+    existing_shifts = [
+        d.to_dict()
+        for d in db.collection("shifts").where("date", "==", date).stream()
+    ]
+
+    availability = {}
+    for st in shift_types:
+        scheduled = [
+            s["technician_name"]
+            for s in existing_shifts
+            if s.get("shift_type") == st
+        ]
+        available = [t for t in all_technicians if t not in scheduled]
+        availability[st] = {
+            "available": available,
+            "scheduled": scheduled,
+        }
+
+    return {
+        "success": True,
+        "date": date,
+        "availability": availability,
+        "message": f"Availability for {date}" + (f" ({shift_type} shift)" if shift_type else " (all shifts)"),
+    }
+
+
+def swap_shifts(
+    shift_id_1: str,
+    shift_id_2: str,
+) -> dict:
+    """Swap two technicians' shifts. Both shifts must exist. Swaps technician_name and turbines_assigned between them.
+
+    Args:
+        shift_id_1: First shift ID to swap
+        shift_id_2: Second shift ID to swap
+
+    Returns:
+        Dict with confirmation and updated shift details
+    """
+    if shift_id_1 == shift_id_2:
+        return {"success": False, "error": "Cannot swap a shift with itself."}
+
+    db = get_client()
+    ref1 = db.collection("shifts").document(shift_id_1)
+    ref2 = db.collection("shifts").document(shift_id_2)
+
+    doc1 = ref1.get()
+    doc2 = ref2.get()
+
+    if not doc1.exists:
+        return {"success": False, "error": f"Shift '{shift_id_1}' not found."}
+    if not doc2.exists:
+        return {"success": False, "error": f"Shift '{shift_id_2}' not found."}
+
+    s1 = doc1.to_dict()
+    s2 = doc2.to_dict()
+
+    ref1.update({
+        "technician_name": s2["technician_name"],
+        "turbines_assigned": s2.get("turbines_assigned", []),
+    })
+    ref2.update({
+        "technician_name": s1["technician_name"],
+        "turbines_assigned": s1.get("turbines_assigned", []),
+    })
+
+    add_audit_log(
+        action="shift_swapped",
+        entity_type="shift",
+        entity_id=f"{shift_id_1},{shift_id_2}",
+        details=f"Swapped {s1['technician_name']} ({shift_id_1}) with {s2['technician_name']} ({shift_id_2})",
+    )
+
+    return {
+        "success": True,
+        "message": f"Swapped: {s1['technician_name']} now has {shift_id_2}, {s2['technician_name']} now has {shift_id_1}.",
+        "shift_1": {
+            "shift_id": shift_id_1,
+            "now_assigned_to": s2["technician_name"],
+            "date": s1.get("date"),
+            "shift_type": s1.get("shift_type"),
+        },
+        "shift_2": {
+            "shift_id": shift_id_2,
+            "now_assigned_to": s1["technician_name"],
+            "date": s2.get("date"),
+            "shift_type": s2.get("shift_type"),
+        },
+    }  
+def delete_shift(
+    shift_id: str,
+) -> dict:
+    """Delete a shift from the roster (e.g. to free up a technician for a specific day).
+
+    Args:
+        shift_id: The shift ID to delete (e.g. SHIFT-024)
+
+    Returns:
+        Dict with confirmation of deleted shift details
+    """
+    db = get_client()
+    ref = db.collection("shifts").document(shift_id)
+    doc = ref.get()
+
+    if not doc.exists:
+        return {"success": False, "error": f"Shift '{shift_id}' not found."}
+
+    shift = doc.to_dict()
+    ref.delete()
+
+    add_audit_log(
+        action="shift_deleted",
+        entity_type="shift",
+        entity_id=shift_id,
+        details=f"Deleted {shift['technician_name']}'s {shift.get('shift_type', '')} shift on {shift.get('date', '')}",
+    )
+
+    return {
+        "success": True,
+        "message": f"Shift {shift_id} deleted. {shift['technician_name']} is now free on {shift.get('date', '')} ({shift.get('shift_type', '')}).",
+        "deleted_shift": shift,
+    }

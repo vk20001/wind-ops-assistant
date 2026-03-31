@@ -21,7 +21,8 @@ steps:
       - '--region=europe-west1'
       - '--platform=managed'
       - '--allow-unauthenticated'
+      - '--memory=2Gi'
+      - '--cpu=2'
       - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=europe-west3,GOOGLE_GENAI_USE_VERTEXAI=TRUE'
-
 options:
   logging: CLOUD_LOGGING_ONLY
