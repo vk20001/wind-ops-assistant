@@ -8,14 +8,15 @@ A multi-agent AI system for wind farm operations. Built on Google ADK with Gemin
 
 ## What it does
 
-Wind farm operations teams deal with fragmented tooling, manual shift handovers, and reactive maintenance. WindOps replaces that with a single conversational interface backed by a coordinator agent that routes requests to five specialist agents — each owning a specific domain and a set of tools.
+Wind farms across APAC are scaling fast. India has over 50 GW of installed wind capacity and is targeting 100 GW by 2030. Australia, Vietnam, and the Philippines are expanding their onshore and offshore fleets to meet rising energy demand. The operational bottleneck is consistent: fragmented tooling, manual shift handovers, and reactive maintenance.
+
+WindOps addresses this directly. A single conversational interface backed by a coordinator agent that routes requests to five specialist agents, each owning a specific domain and a set of tools.
 
 A technician can ask:
 - "What P1 alerts are open on T-007?" → routed to alert_agent
 - "Schedule Ahmed for morning shift on Thursday" → routed to schedule_agent
 - "Create a task: inspect gearbox on T-012, P2" → routed to task_agent
 - "Run the morning briefing" → triggers parallel_morning_briefing workflow
-
 ---
 
 ## Architecture
@@ -162,7 +163,16 @@ Requires Artifact Registry repo `wind-ops-repo` in `europe-west1`. Cloud Run ser
 
 ## APAC relevance
 
-India has 46 GW of installed wind capacity with aggressive 2030 expansion targets. Australia, Vietnam, and the Philippines are scaling offshore and onshore wind rapidly. The operational bottleneck across APAC wind farms is consistent: fragmented tooling, manual shift handovers, and reactive rather than predictive maintenance. WindOps addresses this directly — a single conversational interface that reduces mean time to resolution and keeps turbines generating.
+India has over 50 GW of installed wind capacity, targeting 100 GW by 2030.
+Australia, Vietnam, and the Philippines are scaling fast. The bottleneck
+across APAC wind farms is the same: fragmented tooling, manual handovers,
+reactive maintenance.
+
+WindOps is a multi-agent AI system that handles maintenance tasks, technician
+scheduling, anomaly alerts, and operational analytics across 15 turbines —
+through a single conversational interface.
+
+
 
 ---
 
